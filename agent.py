@@ -28,6 +28,8 @@ IDs. post_invoice only REQUESTS posting: the harness checks eligibility and wait
 for a human. Only a successful tool result proves a post. Respect declined and
 cancelled actions; do not retry them unless the user explicitly requests it again.
 Blocked vendors and duplicate invoices cannot be posted. Report tool errors clearly.
+After a successful post, confirm the invoice and ledger entry ID from the tool result;
+never say that a completed post is still awaiting approval.
 You can answer from previous tool results without calling the tools again. When
 asked which invoices you got through, use completed reads in the saved history.
 Amounts include the currency and retain exact decimal precision.
@@ -193,6 +195,30 @@ class Agent:
                                   "name": call["name"], "content": result})
         self.commit(state)
 
+    def _posted_results_for_current_turn(self):
+        messages = self.state["messages"]
+        last_user = next(
+            (index for index in range(len(messages) - 1, -1, -1)
+             if messages[index].get("role") == "user"),
+            -1,
+        )
+        return [
+            message["content"]
+            for message in messages[last_user + 1:]
+            if message.get("role") == "tool"
+            and message.get("name") == "post_invoice"
+            and isinstance(message.get("content"), dict)
+            and message["content"].get("status") == "posted"
+        ]
+
+    @staticmethod
+    def _post_confirmation(result):
+        return (
+            f"Posted invoice {result['invoice_number']} ({result['invoice_id']}) "
+            f"to the ledger as {result['entry_id']} for "
+            f"{result['currency']} {result['amount']}."
+        )
+
     def show_approval(self):
         pending = self.state["pending"]
         if not pending:
@@ -307,6 +333,13 @@ class Agent:
                 "system_prompt": SYSTEM_PROMPT,
             }, self.root)
             self.validate_response(response)
+            if not response.get("tool_calls"):
+                posted = self._posted_results_for_current_turn()
+                if posted:
+                    response = dict(response)
+                    response["content"] = "\n".join(
+                        self._post_confirmation(result) for result in posted
+                    )
             self.state["messages"].append(response)
             if not response.get("tool_calls"):
                 self.state["active"] = False

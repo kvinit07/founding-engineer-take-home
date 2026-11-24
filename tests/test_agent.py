@@ -90,6 +90,23 @@ class AgentTests(unittest.TestCase):
         self.agent.approve()
         self.assertEqual(len(ledger.entries()), 2)
 
+    def test_post_confirmation_uses_ledger_result_not_model_claim(self):
+        self.runner.responses.extend([
+            request(invoice_id="invoice-01"),
+            answer("Invoice-01 is still awaiting approval and was not posted."),
+        ])
+        self.agent.submit("post invoice-01")
+        self.agent.approve()
+
+        entries = ledger.entries(invoice_number="SGP/26-27/0412")
+        self.assertEqual(len(entries), 1)
+        expected = (
+            f"Posted invoice SGP/26-27/0412 (invoice-01) to the ledger as "
+            f"{entries[0]['entry_id']} for INR 16862.20."
+        )
+        self.assertEqual(self.agent.state["messages"][-1]["content"], expected)
+        self.assertEqual(self.output[-1], f"agent> {expected}")
+
     def test_waiting_approval_survives_restart(self):
         self.runner.responses.extend([request(invoice_id="invoice-02"), answer("Posted.")])
         self.agent.submit("post invoice-02")
