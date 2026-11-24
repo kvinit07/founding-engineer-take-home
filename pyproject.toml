@@ -1,6 +1,10 @@
 [project]
 name = "fourx-take-home"
 version = "0.1.0"
-description = "FourX take-home: a small agent harness"
+description = "A small, durable accounts-payable agent harness"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "google-genai==3.6.1",
+    "groq==1.7.0",
+    "python-dotenv>=1,<2",
+]
